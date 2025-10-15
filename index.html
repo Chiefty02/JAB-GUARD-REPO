@@ -74,7 +74,7 @@
 
 <body>
   <h1>Pose Detection Demo (Jab / Guard)</h1>
-  <button type="button" onclick="init()">Start Webcam</button>
+  <button type="button" id="start-btn">Start Webcam</button>
 
   <div id="webcam-container"></div>
   <div id="label-container"></div>
@@ -84,6 +84,8 @@
     const URL = "./model/";
     let model, webcam, ctx, labelContainer, maxPredictions;
     let canvas;
+
+    document.getElementById("start-btn").addEventListener("click", init);
 
     async function init() {
       const modelURL = URL + "model.json";
@@ -98,31 +100,32 @@
       const flip = true;
       webcam = new tmPose.Webcam(size, size, flip);
 
-      // Request camera access
       await webcam.setup({ facingMode: "user" });
       await webcam.play();
 
-      // Create canvas
+      // Create canvas and attach
       canvas = document.createElement("canvas");
       canvas.width = size;
       canvas.height = size;
       document.getElementById("webcam-container").appendChild(canvas);
       ctx = canvas.getContext("2d");
 
-      // Create label boxes
+      // Create labels
       labelContainer = document.getElementById("label-container");
       for (let i = 0; i < maxPredictions; i++) {
         labelContainer.appendChild(document.createElement("div"));
       }
 
-      // Start loop
-      window.requestAnimationFrame(loop);
+      // Wait a tiny bit before looping (ensures webcam starts)
+      setTimeout(() => {
+        window.requestAnimationFrame(loop);
+      }, 300);
     }
 
     async function loop() {
-      webcam.update();
-      await predict();
-      window.requestAnimationFrame(loop);
+      webcam.update(); // get current webcam frame
+      await predict(); // run model prediction
+      window.requestAnimationFrame(loop); // repeat
     }
 
     async function predict() {
@@ -135,7 +138,7 @@
       const { pose, posenetOutput } = await model.estimatePose(webcam.canvas);
       const prediction = await model.predict(posenetOutput);
 
-      // Draw pose lines (slightly transparent)
+      // Draw pose lines
       ctx.globalAlpha = 0.8;
       model.drawPose(pose, ctx);
       ctx.globalAlpha = 1.0;
