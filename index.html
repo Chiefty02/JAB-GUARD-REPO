@@ -4,14 +4,80 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Pose Detection Demo (Jab / Guard)</title>
+
+  <!-- TensorFlow & Teachable Machine Pose -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@2.0.0"></script>
   <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/pose@0.8/dist/teachablemachine-pose.min.js"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      background: #0a0a0a;
+      color: #fff;
+      margin: 0;
+      padding: 0;
+    }
+    h1 {
+      margin-top: 30px;
+      color: #00ff99;
+    }
+    #webcam-container canvas {
+      margin-top: 20px;
+      border-radius: 10px;
+      border: 2px solid #00ff99;
+    }
+    #label-container div {
+      font-size: 18px;
+      margin-top: 10px;
+      background: rgba(0, 255, 153, 0.1);
+      padding: 8px;
+      border-radius: 8px;
+      width: 220px;
+      margin-left: auto;
+      margin-right: auto;
+      transition: background 0.3s;
+    }
+    button {
+      background: #00ff99;
+      color: #111;
+      font-size: 18px;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 20px;
+      cursor: pointer;
+      margin-top: 20px;
+    }
+    button:hover {
+      background: #00cc77;
+    }
+    #active-pose {
+      margin-top: 30px;
+      font-size: 28px;
+      font-weight: bold;
+      text-transform: uppercase;
+      padding: 15px 30px;
+      border-radius: 12px;
+      display: inline-block;
+      background: #333;
+      border: 2px solid #555;
+      transition: all 0.3s ease;
+    }
+    #active-pose.active {
+      background: #00ff99;
+      color: #111;
+      border-color: #00ff99;
+      box-shadow: 0 0 20px #00ff99;
+    }
+  </style>
 </head>
 <body>
   <h1>Pose Detection Demo (Jab / Guard)</h1>
   <button type="button" onclick="init()">Start Webcam</button>
+
   <div id="webcam-container"></div>
   <div id="label-container"></div>
+  <div id="active-pose">No Pose Detected</div>
 
   <script type="text/javascript">
     const URL = "./model/";
@@ -24,10 +90,10 @@
       model = await tmPose.load(modelURL, metadataURL);
       maxPredictions = model.getTotalClasses();
 
-      const size = 300;
-      const flip = true; // flip webcam for selfie view
+      const size = 400;
+      const flip = true;
       webcam = new tmPose.Webcam(size, size, flip);
-      await webcam.setup(); // ask for camera permission
+      await webcam.setup();
       await webcam.play();
       window.requestAnimationFrame(loop);
 
@@ -44,7 +110,7 @@
     }
 
     async function loop(timestamp) {
-      webcam.update(); // update webcam frame
+      webcam.update();
       await predict();
       window.requestAnimationFrame(loop);
     }
@@ -53,14 +119,33 @@
       const { pose, posenetOutput } = await model.estimatePose(webcam.canvas);
       const prediction = await model.predict(posenetOutput);
 
-      // draw pose
       ctx.drawImage(webcam.canvas, 0, 0);
       model.drawPose(pose, ctx);
 
+      let highestClass = "";
+      let highestProb = 0;
+
       for (let i = 0; i < maxPredictions; i++) {
-        const classPrediction =
-          prediction[i].className + ": " + prediction[i].probability.toFixed(2);
-        labelContainer.childNodes[i].innerHTML = classPrediction;
+        const className = prediction[i].className;
+        const probability = prediction[i].probability;
+        const percent = (probability * 100).toFixed(1);
+
+        labelContainer.childNodes[i].innerHTML = `${className}: ${percent}%`;
+
+        if (probability > highestProb) {
+          highestProb = probability;
+          highestClass = className;
+        }
+      }
+
+      // Highlight active pose
+      const activePose = document.getElementById("active-pose");
+      if (highestProb > 0.75) { // confidence threshold
+        activePose.textContent = highestClass;
+        activePose.classList.add("active");
+      } else {
+        activePose.textContent = "No Pose Detected";
+        activePose.classList.remove("active");
       }
     }
   </script>
