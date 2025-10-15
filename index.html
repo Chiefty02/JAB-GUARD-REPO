@@ -71,6 +71,7 @@
     }
   </style>
 </head>
+
 <body>
   <h1>Pose Detection Demo (Jab / Guard)</h1>
   <button type="button" onclick="init()">Start Webcam</button>
@@ -82,46 +83,64 @@
   <script type="text/javascript">
     const URL = "./model/";
     let model, webcam, ctx, labelContainer, maxPredictions;
+    let canvas;
 
     async function init() {
       const modelURL = URL + "model.json";
       const metadataURL = URL + "metadata.json";
 
+      // Load model
       model = await tmPose.load(modelURL, metadataURL);
       maxPredictions = model.getTotalClasses();
 
+      // Set up webcam
       const size = 400;
       const flip = true;
       webcam = new tmPose.Webcam(size, size, flip);
-      await webcam.setup();
-      await webcam.play();
-      window.requestAnimationFrame(loop);
 
-      const canvas = document.createElement("canvas");
+      // Request camera access
+      await webcam.setup({ facingMode: "user" });
+      await webcam.play();
+
+      // Create canvas
+      canvas = document.createElement("canvas");
       canvas.width = size;
       canvas.height = size;
       document.getElementById("webcam-container").appendChild(canvas);
       ctx = canvas.getContext("2d");
 
+      // Create label boxes
       labelContainer = document.getElementById("label-container");
       for (let i = 0; i < maxPredictions; i++) {
         labelContainer.appendChild(document.createElement("div"));
       }
+
+      // Start loop
+      window.requestAnimationFrame(loop);
     }
 
-    async function loop(timestamp) {
+    async function loop() {
       webcam.update();
       await predict();
       window.requestAnimationFrame(loop);
     }
 
     async function predict() {
+      if (!webcam.canvas) return;
+
+      // Draw webcam feed
+      ctx.drawImage(webcam.canvas, 0, 0, canvas.width, canvas.height);
+
+      // Estimate pose
       const { pose, posenetOutput } = await model.estimatePose(webcam.canvas);
       const prediction = await model.predict(posenetOutput);
 
-      ctx.drawImage(webcam.canvas, 0, 0);
+      // Draw pose lines (slightly transparent)
+      ctx.globalAlpha = 0.8;
       model.drawPose(pose, ctx);
+      ctx.globalAlpha = 1.0;
 
+      // Find highest prediction
       let highestClass = "";
       let highestProb = 0;
 
@@ -138,9 +157,9 @@
         }
       }
 
-      // Highlight active pose
+      // Show active pose
       const activePose = document.getElementById("active-pose");
-      if (highestProb > 0.75) { // confidence threshold
+      if (highestProb > 0.75) {
         activePose.textContent = highestClass;
         activePose.classList.add("active");
       } else {
