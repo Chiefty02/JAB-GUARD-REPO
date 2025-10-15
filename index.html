@@ -1,42 +1,50 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <title>My Pose Model Test</title>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/pose"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pose Detection Demo (Jab / Guard)</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@2.0.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/pose@0.8/dist/teachablemachine-pose.min.js"></script>
 </head>
 <body>
-  <h2>Pose Detection Demo (Jab / Guard)</h2>
+  <h1>Pose Detection Demo (Jab / Guard)</h1>
+  <button type="button" onclick="init()">Start Webcam</button>
   <div id="webcam-container"></div>
   <div id="label-container"></div>
 
   <script type="text/javascript">
-    const URL = "./model/"; // Folder where you placed the model
-    let model, webcam, labelContainer, maxPredictions;
+    const URL = "./model/";
+    let model, webcam, ctx, labelContainer, maxPredictions;
 
     async function init() {
       const modelURL = URL + "model.json";
       const metadataURL = URL + "metadata.json";
+
       model = await tmPose.load(modelURL, metadataURL);
       maxPredictions = model.getTotalClasses();
 
-      const size = 400;
-      const flip = true; 
+      const size = 300;
+      const flip = true; // flip webcam for selfie view
       webcam = new tmPose.Webcam(size, size, flip);
-      await webcam.setup();
+      await webcam.setup(); // ask for camera permission
       await webcam.play();
       window.requestAnimationFrame(loop);
 
-      document.getElementById("webcam-container").appendChild(webcam.canvas);
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = size;
+      document.getElementById("webcam-container").appendChild(canvas);
+      ctx = canvas.getContext("2d");
+
       labelContainer = document.getElementById("label-container");
       for (let i = 0; i < maxPredictions; i++) {
         labelContainer.appendChild(document.createElement("div"));
       }
     }
 
-    async function loop() {
-      webcam.update();
+    async function loop(timestamp) {
+      webcam.update(); // update webcam frame
       await predict();
       window.requestAnimationFrame(loop);
     }
@@ -45,14 +53,16 @@
       const { pose, posenetOutput } = await model.estimatePose(webcam.canvas);
       const prediction = await model.predict(posenetOutput);
 
+      // draw pose
+      ctx.drawImage(webcam.canvas, 0, 0);
+      model.drawPose(pose, ctx);
+
       for (let i = 0; i < maxPredictions; i++) {
         const classPrediction =
           prediction[i].className + ": " + prediction[i].probability.toFixed(2);
         labelContainer.childNodes[i].innerHTML = classPrediction;
       }
     }
-
-    init();
   </script>
 </body>
 </html>
